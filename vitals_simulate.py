@@ -1,9 +1,14 @@
-import time
+from flask import Flask, jsonify , render_template
 import random
-import json
-import csv
+import time
+import threading
 
-# Define SpO2, Heart Rate, and Blood Pressure ranges
+app = Flask(__name__)
+
+
+
+
+# SpO2, Heart Rate, and Blood Pressure ranges
 VITAL_RANGES = {
     "spo2": {
         "normal": (95, 100),
@@ -12,8 +17,8 @@ VITAL_RANGES = {
     },
     "heart_rate": {
         "normal": (60, 100),
-        "warning": (50, 59.9),  # Low warning 
-        "critical": (30, 49.9),  # Extremely low HR
+        "low_warning": (50, 59.9),  # Low warning 
+        "low_critical": (30, 49.9),  # Extremely low HR
         "high_warning": (100.1, 110),  # High warning HR
         "high_critical": (110.1, 150)  # Extremely high HR
     },
@@ -22,13 +27,13 @@ VITAL_RANGES = {
         "normal_diastolic": (60, 80),
         "warning_systolic": (120, 140),
         "warning_diastolic": (80, 90),
-        "critical_systolic": (0, 80),  # Critical if systolic <= 80 or systolic >= 140
-        "critical_diastolic": (0, 50),  # Critical if diastolic <= 50 or diastolic >= 90
+        "critical_systolic": (80, 150),  # Critical if systolic <= 80 or systolic >= 140
+        "critical_diastolic": (50, 110),  # Critical if diastolic <= 50 or diastolic >= 90
     }
 }
 
 # Number of patients
-NUM_PATIENTS = 5  # Change this if testing multiple patients
+NUM_PATIENTS = 5  
 
 # Assign initial states for all patients
 patients = []
@@ -49,20 +54,49 @@ for i in range(NUM_PATIENTS):
     }
     patients.append(patient)
 
-# Define decrease probability
+# Decrease probability of SpO2
 decrease_probability = 0.02
+lock = threading.Lock()
 
-def simulate_vitals(patient):
-    """
-    Simulate SpO2, Heart Rate (HR), and Blood Pressure (BP) with realistic interdependencies.
-    """
+def alert_triggered(patient):  
+    alert_triggered = False  
+    status = "Normal"
+
+    # Check SpO2 levels
+    if patient["current_spo2"] <= 90:
+        alert_triggered = True
+        status = "Critical"
+    elif 90 < patient["current_spo2"] < 95:
+        status = "Warning"
+
+    # Check Heart Rate
+    if patient["current_hr"] <= 50 or patient["current_hr"] >= 140:
+        alert_triggered = True
+        status = "Critical"
+    elif 50 <= patient["current_hr"] < 60 or 120 <= patient["current_hr"] < 140:
+        status = "Warning"
+
+    # Check Blood Pressure
+    if patient["current_systolic_bp"] >= 140 or patient["current_diastolic_bp"] >= 90:
+        alert_triggered = True
+        status = "Critical"
+    elif 130 <= patient["current_systolic_bp"] < 140 or 80 <= patient["current_diastolic_bp"] < 90:
+        status = "Warning"
+
+    # Store results in patient dictionary
+    patient["alert_triggered"] = alert_triggered
+    patient["status"] = status  # Store severity level for display
+
+    return alert_triggered, status
+
+
+
+def simulate_vitals(patient): # Simulate vitals update
+    
     if patient["alert_triggered"]:
-        # If alert is triggered, retain last values
         return patient
 
-    alert_triggered = False  
-
-    # === Simulate SpO2 ===
+    # Simulate SpO2
     current_spo2 = patient["current_spo2"]
     is_spo2_decreasing = patient["is_spo2_decreasing"]
     spo2_hold_counter = patient["spo2_hold_counter"]
@@ -84,14 +118,12 @@ def simulate_vitals(patient):
             next_spo2 = current_spo2 - decrement
             spo2_hold_counter = random.randint(2, 10)  
 
-        
-
-    # === Simulate Heart Rate (HR) ===
+    # Simulate Heart Rate (HR)
     current_hr = patient["current_hr"]
     is_hr_changing = patient["is_hr_changing"]
     hr_hold_counter = patient["hr_hold_counter"]
 
-    if hr_hold_counter > 0:  
+    if hr_hold_counter > 0:
         next_hr = current_hr
         hr_hold_counter -= 1  
     else:
@@ -111,15 +143,9 @@ def simulate_vitals(patient):
 
         hr_hold_counter = random.randint(2, 10)  
 
-        
-
     next_hr = max(min(next_hr, VITAL_RANGES["heart_rate"]["high_critical"][1]), VITAL_RANGES["heart_rate"]["normal"][0])  
 
-
-
-
-
-    # === Simulate Blood Pressure (BP) ===
+    # Simulate Blood Pressure (BP)
     current_systolic_bp = patient["current_systolic_bp"]
     current_diastolic_bp = patient["current_diastolic_bp"]
     bp_hold_counter = patient["bp_hold_counter"]
@@ -129,10 +155,9 @@ def simulate_vitals(patient):
         next_diastolic_bp = current_diastolic_bp
         bp_hold_counter -= 1
     else:
-        # BP tends to rise when heart rate increases
         if current_hr > 120:
             systolic_increase = random.randint(2, 7)
-            diastolic_increase = random.randint(1,3 )
+            diastolic_increase = random.randint(1, 3)
             next_systolic_bp = current_systolic_bp + systolic_increase
             next_diastolic_bp = current_diastolic_bp + diastolic_increase
         elif current_hr < 50:
@@ -141,7 +166,6 @@ def simulate_vitals(patient):
             next_systolic_bp = current_systolic_bp - systolic_decrease
             next_diastolic_bp = current_diastolic_bp - diastolic_decrease
         else:
-            # Normal fluctuations in BP
             systolic_fluctuation = random.randint(-3, 3)
             diastolic_fluctuation = random.randint(-2, 2)
             next_systolic_bp = current_systolic_bp + systolic_fluctuation
@@ -149,65 +173,60 @@ def simulate_vitals(patient):
 
         bp_hold_counter = random.randint(1, 3)
 
-    
-
-    # === Alert Triggering ===
-   
-    if patient["current_systolic_bp"] >= 140 or patient["current_diastolic_bp"] >= 90:
-        alert_triggered = True
-
-
-    if next_spo2 <= 90 or next_hr <=  50 or \
-       next_hr >= 140 :
-       alert_triggered = True  
-
+    # Update patient vitals
     patient["current_spo2"] = round(next_spo2, 1)
     patient["current_hr"] = round(next_hr, 1)
     patient["current_systolic_bp"] = round(next_systolic_bp, 1)
     patient["current_diastolic_bp"] = round(next_diastolic_bp, 1)
+
+    # Update patient state
     patient["is_spo2_decreasing"] = is_spo2_decreasing
     patient["spo2_hold_counter"] = spo2_hold_counter
     patient["is_hr_changing"] = is_hr_changing
     patient["hr_hold_counter"] = hr_hold_counter
     patient["bp_hold_counter"] = bp_hold_counter
 
-    if alert_triggered:
-        patient["alert_triggered"] = True
+    # Check if an alert is triggered based on updated vitals
+    alert_triggered(patient)
 
     return patient
 
 
-if __name__ == "__main__":
-    print(f"Monitoring {NUM_PATIENTS} Patients...\n")
 
-    while any(not patient["alert_triggered"] for patient in patients):
-        for patient in patients:
-            if not patient["alert_triggered"]:
-                patient = simulate_vitals(patient)
-
-
-            # SpO2 and Heart Rate
-            spo2_status = "Critical" if patient["current_spo2"] <= 90 else \
-            "Warning" if 90 <= patient["current_spo2"] < 95 else "Normal"
+def update_vitals():
+    """Continuously update vitals every second"""
+    while True:
+        with lock:  # Ensure safe access to shared data
+            for patient in patients:
+                simulate_vitals(patient)
+        time.sleep(1)  # Wait for 1 second before updating again
 
 
-            hr_status = "Critical" if patient["current_hr"] <= 50 or patient["current_hr"] >= 140 else \
-            "Warning" if 50 < patient["current_hr"] < 60 or 120 < patient["current_hr"] < 140 else "Normal"
+@app.route('/')
+def home():
+    return render_template('index.html')
 
 
-            # BP status 
-            if patient["current_systolic_bp"] >= 140 or patient["current_diastolic_bp"] >= 90:
-                bp_status = "Critical"
-            elif 130 <= patient["current_systolic_bp"] < 140 or 80 <= patient["current_diastolic_bp"] < 90:
-                bp_status = "Warning"
-            else:
-                bp_status = "Normal"
+@app.route('/update_vitals')
+def get_vitals():
+    """API endpoint to fetch the latest vitals"""
+    with lock:
+        return jsonify([
+            {
+                "id": p["id"],
+                "spo2": p["current_spo2"],
+                "heart_rate": p["current_hr"],
+                "systolic_bp": p["current_systolic_bp"],
+                "diastolic_bp": p["current_diastolic_bp"],
+                "status": p["status"],
+                "alert": p["alert_triggered"]
+            }
+            for p in patients
+        ])
 
 
+if __name__ == '__main__':
+    # Start the background thread for updating vitals
+    threading.Thread(target=update_vitals, daemon=True).start()
+    app.run(debug=True)
 
-            print(f"Patient {patient['id']} - SpO2: {patient['current_spo2']}% ({spo2_status}), HR: {patient['current_hr']} bpm ({hr_status}), BP: {patient['current_systolic_bp']}/{patient['current_diastolic_bp']} mmHg ({bp_status})\n")
-        
-        # Wait for a moment before next iteration
-        time.sleep(1)
-
-    print("\nAlert triggered for one or more patients!")

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Health Monitoring</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .status-normal { background-color: #d4edda; }  /* Green */
+        .status-warning { background-color: #fff3cd; } /* Yellow */
+        .status-critical { background-color: #f8d7da; } /* Red */
+        .table td, .table th { text-align: center; vertical-align: middle; }
+    </style>
+</head>
+<body class="bg-light">
+
+    <div class="container mt-4">
+        <h2 class="text-center">Real-Time Patient Health Monitoring</h2>
+        <table class="table table-bordered table-striped mt-3">
+            <thead class="thead-dark">
+                <tr>
+                    <th>Patient ID</th>
+                    <th>SpO2</th>
+                    <th>Heart Rate</th>
+                    <th>Systolic BP</th>
+                    <th>Diastolic BP</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="patient-data">
+                <!-- Data will be inserted here dynamically -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function fetchVitals() {
+    $.getJSON("/update_vitals", function(data) {
+        let tableBody = "";
+        data.forEach(patient => {
+            let statusClass = patient.status === "Critical" ? "status-critical"
+                             : patient.status === "Warning" ? "status-warning"
+                             : "status-normal";
+
+            tableBody += `
+                <tr class="${statusClass}">
+                    <td>${patient.id}</td>
+                    <td>${patient.spo2}%</td>
+                    <td>${patient.heart_rate} bpm</td>
+                    <td>${patient.systolic_bp} mmHg</td>
+                    <td>${patient.diastolic_bp} mmHg</td>
+                    <td>${patient.status}</td>
+                </tr>
+            `;
+        });
+        $("#patient-data").html(tableBody);
+    });
+}
+
+// Fetch every 1 second instead of 5 seconds
+$(document).ready(function() {
+    fetchVitals();
+    setInterval(fetchVitals, 1000);
+});
+
+
+    </script>
+
+</body>
+</html>
