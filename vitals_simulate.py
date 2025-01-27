@@ -2,9 +2,39 @@ from flask import Flask, jsonify , render_template
 import random
 import time
 import threading
+import csv
+from datetime import datetime
+
 
 app = Flask(__name__)
 
+
+
+# Define the CSV file path
+CSV_FILE_PATH = "patient_vitals.csv"
+
+# Function to save data to CSV
+def save_data_to_csv():
+    """Save patient vitals data to CSV file"""
+    with open(CSV_FILE_PATH, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        
+        # Check if file is empty (write header only once)
+        if file.tell() == 0:
+            writer.writerow(["timestamp", "patient_id", "spo2", "heart_rate", "systolic_bp", "diastolic_bp", "status", "alert"])
+        
+        for patient in patients:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            writer.writerow([
+                timestamp,
+                patient["id"],
+                patient["current_spo2"],
+                patient["current_hr"],
+                patient["current_systolic_bp"],
+                patient["current_diastolic_bp"],
+                patient["status"],
+                patient["alert_triggered"]
+            ])
 
 
 
@@ -51,6 +81,7 @@ for i in range(NUM_PATIENTS):
         "bp_hold_counter": 0,
         "alert_triggered": False,  # Tracks if an alert has been triggered
         "alert_confirm_counter": 3,  # Allow some delay before final alert lock
+        "status": "Normal"  # Initialize status as normal
     }
     patients.append(patient)
 
@@ -61,33 +92,43 @@ lock = threading.Lock()
 def alert_triggered(patient):  
     alert_triggered = False  
     status = "Normal"
+    alert_details = ""
+    
 
     # Check SpO2 levels
     if patient["current_spo2"] <= 90:
         alert_triggered = True
         status = "Critical"
+        alert_details = "Low SpO2" 
     elif 90 < patient["current_spo2"] < 95:
         status = "Warning"
+        alert_details = "Warning SpO2"
 
     # Check Heart Rate
     if patient["current_hr"] <= 50 or patient["current_hr"] >= 140:
         alert_triggered = True
         status = "Critical"
+        alert_details = "Abnormal Heart Rate"
     elif 50 <= patient["current_hr"] < 60 or 120 <= patient["current_hr"] < 140:
         status = "Warning"
+        alert_details = "Heart Rate Warning"
 
     # Check Blood Pressure
     if patient["current_systolic_bp"] >= 140 or patient["current_diastolic_bp"] >= 90:
         alert_triggered = True
         status = "Critical"
+        alert_details = "Abnormal Blood Pressure"
+
     elif 130 <= patient["current_systolic_bp"] < 140 or 80 <= patient["current_diastolic_bp"] < 90:
         status = "Warning"
+        alert_details = "Blood Pressure Warning"
 
     # Store results in patient dictionary
     patient["alert_triggered"] = alert_triggered
     patient["status"] = status  # Store severity level for display
+    patient["alert_details"] = alert_details  # Store specific alert details
 
-    return alert_triggered, status
+    return alert_triggered, status , alert_details
 
 
 
@@ -194,12 +235,23 @@ def simulate_vitals(patient): # Simulate vitals update
 
 
 def update_vitals():
-    """Continuously update vitals every second"""
+    """Continuously update vitals every second, and save to CSV every 5 seconds"""
+    save_interval = 5  # Save data every 5 seconds
+    last_save_time = time.time()
+
     while True:
         with lock:  # Ensure safe access to shared data
             for patient in patients:
                 simulate_vitals(patient)
+        
+        # Save data every 5 seconds
+        current_time = time.time()
+        if current_time - last_save_time >= save_interval:
+            save_data_to_csv()
+            last_save_time = current_time  # Reset the last save time
+        
         time.sleep(1)  # Wait for 1 second before updating again
+
 
 
 @app.route('/')
@@ -219,10 +271,13 @@ def get_vitals():
                 "systolic_bp": p["current_systolic_bp"],
                 "diastolic_bp": p["current_diastolic_bp"],
                 "status": p["status"],
-                "alert": p["alert_triggered"]
+                "alert": p["alert_triggered"],
+                "alert_details": p["alert_details"]
             }
             for p in patients
         ])
+    
+    
 
 
 if __name__ == '__main__':

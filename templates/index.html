@@ -26,6 +26,7 @@
                     <th>Systolic BP</th>
                     <th>Diastolic BP</th>
                     <th>Status</th>
+                    <th>Alert</th> <!-- New column for the alert reason -->
                 </tr>
             </thead>
             <tbody id="patient-data">
@@ -36,35 +37,37 @@
 
     <script>
         function fetchVitals() {
-    $.getJSON("/update_vitals", function(data) {
-        let tableBody = "";
-        data.forEach(patient => {
-            let statusClass = patient.status === "Critical" ? "status-critical"
-                             : patient.status === "Warning" ? "status-warning"
-                             : "status-normal";
+            $.getJSON("/update_vitals", function(data) {
+                let tableBody = "";
+                data.forEach(patient => {
+                    let statusClass = patient.status === "Critical" ? "status-critical"
+                                     : patient.status === "Warning" ? "status-warning"
+                                     : "status-normal";
 
-            tableBody += `
-                <tr class="${statusClass}">
-                    <td>${patient.id}</td>
-                    <td>${patient.spo2}%</td>
-                    <td>${patient.heart_rate} bpm</td>
-                    <td>${patient.systolic_bp} mmHg</td>
-                    <td>${patient.diastolic_bp} mmHg</td>
-                    <td>${patient.status}</td>
-                </tr>
-            `;
+                    // Prepare the alert message based on the patient's status
+                    let alertMessage = patient.alert_details || "No Alert";  // Display reason if alert triggered
+
+                    tableBody += `
+                        <tr class="${statusClass}">
+                            <td>${patient.id}</td>
+                            <td>${patient.spo2}%</td>
+                            <td>${patient.heart_rate} bpm</td>
+                            <td>${patient.systolic_bp} mmHg</td>
+                            <td>${patient.diastolic_bp} mmHg</td>
+                            <td>${patient.status}</td>
+                            <td>${alertMessage}</td> <!-- Display alert reason -->
+                        </tr>
+                    `;
+                });
+                $("#patient-data").html(tableBody);
+            });
+        }
+
+        // Fetch every 1 second instead of 5 seconds
+        $(document).ready(function() {
+            fetchVitals();
+            setInterval(fetchVitals, 1000);
         });
-        $("#patient-data").html(tableBody);
-    });
-}
-
-// Fetch every 1 second instead of 5 seconds
-$(document).ready(function() {
-    fetchVitals();
-    setInterval(fetchVitals, 1000);
-});
-
-
     </script>
 
 </body>

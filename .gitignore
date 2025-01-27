@@ -1,6 +1,2 @@
 venv
-patient_1_vitals_data.csv
-patient_2_vitals_data.csv
-patient_3_vitals_data.csv
-patient_4_vitals_data.csv
-patient_5_vitals_data.csv
+patient_vitals.csv
