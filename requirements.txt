@@ -1,23 +1,11 @@
-# Flask and REST API dependencies
 flask
-flask-restful
-flask-cors
 flask-socketio
-
-# Database dependencies
-python-dotenv
-
-# Data science and machine learning dependencies
-numpy
 pandas
+numpy
+random
+time
+os
+datetime
+csv
+math
 scikit-learn
-
-# Data visualization
-matplotlib
-plotly
-
-# Testing
-pytest
-
-gunicorn
-
