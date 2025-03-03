@@ -6,7 +6,6 @@ sqlalchemy
 mysql-connector-python
 python-dotenv
 
-# Machine Learning and Data Processing
 numpy
 pandas
 scikit-learn
@@ -14,5 +13,4 @@ tensorflow
 matplotlib
 plotly
 
-# Testing and Development
 pytest

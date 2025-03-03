@@ -1,3 +1,4 @@
 venv
 patient_vitals.csv
 data
+alert_log.csv

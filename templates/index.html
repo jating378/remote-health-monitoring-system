@@ -1,74 +1,698 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time Health Monitoring</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <style>
-        .status-normal { background-color: #d4edda; }  /* Green */
-        .status-warning { background-color: #fff3cd; } /* Yellow */
-        .status-critical { background-color: #f8d7da; } /* Red */
-        .table td, .table th { text-align: center; vertical-align: middle; }
-    </style>
+  <meta charset="UTF-8">
+  <title>RHMS - Patient Monitoring Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.4.1/dist/socket.io.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+    
+    :root {
+      --primary: #6366f1;
+      --critical: #ef4444;
+      --warning: #f59e0b;
+      --normal: #10b981;
+      --background: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.8);
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --assistanceactive: #2563eb;
+    }
+
+    body {
+      background-color: var(--background);
+      color: var(--text-primary);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Glassmorphism Effect */
+    .glass-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    /* Header Styles */
+    .dashboard-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Control Buttons */
+    .control-btn {
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid var(--primary);
+      color: var(--primary);
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .control-btn:hover {
+      background: var(--primary);
+      color: white;
+      transform: translateY(-2px);
+    }
+
+    /* Patient Card */
+    .patient-card {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .patient-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 15px rgba(0, 0, 0, 0.3);
+    }
+    .patient-card.assistanceactive { border-color: var(--assistanceactive); }
+
+
+  .status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: red;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  70% {
+    transform: scale(1.3); /* Slightly grow the size */
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0.2);
+  }
+  100% {
+    transform: scale(1); /* Shrink back to original size */
+    box-shadow: 0 0 0 20px rgba(239, 68, 68, 0);
+  }
+}
+
+
+    /* Vital Signs Display */
+    .vital-display {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      position: relative;
+    }
+
+    .vital-progress {
+      height: 6px;
+      border-radius: 3px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .progress-bar {
+      transition: width 0.5s ease;
+    }
+
+    /* Alert Styles */
+    .alert-badge {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+    }
+
+    /* Chart Container */
+    .chart-container {
+      height: 180px;
+      border-radius: 0.75rem;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    /* Alert Log */
+    .alert-log {
+      max-height: 400px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--primary) transparent;
+    }
+
+    .alert-entry {
+      background: var(--card-bg);
+      border-left: 4px solid;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      border-radius: 0.5rem;
+    }
+
+    /* Alert Container */
+.alert-container {
+  backdrop-filter: blur(10px);
+  border-radius: 0;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Base Alert Styling */
+.alert-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border-left: 5px solid;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s ease-in-out;
+  display: none; /* Initially hidden */
+}
+
+/* Alert Levels */
+.alert-normal {
+  border-color: #28a745;
+  background: rgba(40, 167, 69, 0.15);
+  color: #28a745;
+}
+
+.alert-warning {
+  border-color: #ffc107;
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+}
+
+.alert-critical {
+  border-color: #dc3545;
+  background: rgba(220, 53, 69, 0.15);
+  color: #dc3545;
+}
+
+/* Alert Icons */
+.alert-icon {
+  font-size: 1.3rem;
+}
+
+/* Timestamp */
+.timestamp {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Smooth Fade-in Effect */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.alert-entry {
+  animation: fadeIn 0.3s ease-out;
+}
+
+    
+  </style>
 </head>
-<body class="bg-light">
-
-    <div class="container mt-4">
-        <h2 class="text-center">Real-Time Patient Health Monitoring</h2>
-        <table class="table table-bordered table-striped mt-3">
-            <thead class="thead-dark">
-                <tr>
-                    <th>Patient ID</th>
-                    <th>SpO2</th>
-                    <th>Heart Rate</th>
-                    <th>Systolic BP</th>
-                    <th>Diastolic BP</th>
-                    <th>Status</th>
-                    <th>Alert</th> <!-- New column for the alert reason -->
-                </tr>
-            </thead>
-            <tbody id="patient-data">
-                <!-- Data will be inserted here dynamically -->
-            </tbody>
-        </table>
+<body>
+  <div class="container mb-4">
+    <header class="dashboard-header">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h3 mb-0">
+            <i class="fas fa-heartbeat text-primary me-2"></i>
+            RHMS Dashboard
+          </h1>
+          <small class="text-white" >Real-time Patient Monitoring System</small>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="control-btn" onclick="controlSimulation('start')">
+            <i class="fas fa-play me-2"></i>Start
+          </button>
+          <button class="control-btn" onclick="controlSimulation('stop')">
+            <i class="fas fa-stop me-2"></i>Stop
+          </button>
+          <button class="control-btn" onclick="controlSimulation('restart')">
+            <i class="fas fa-redo me-2"></i>Restart
+          </button>
+        </div>
+      </div>
+    </header>
+    <div class="intro-section p-4 rounded shadow" style="background: linear-gradient(135deg, #2c3e50, #3498db); color: white;">
+      <!-- Header and Simulation Controls -->
+      
+        <div id="sim-status" class="mt-2"></div>
+        <div class="row g-3 mt-3">
+          <div class="col-md-6 col-lg-4">
+            <div class="p-2 rounded" style="background-color: rgba(52, 152, 219, 0.8);">
+              <h6>SpO₂ Clinical Thresholds</h6>
+              <div>Normal: ≥95%</div>
+              <div>Warning: 90-94%</div>
+              <div>Critical: &lt;90%</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-4">
+            <div class="p-2 rounded" style="background-color: rgba(52, 152, 219, 0.8);">
+              <h6>Heart Rate Clinical Thresholds</h6>
+              <div>Normal: 60-100 bpm</div>
+              <div>Warning: 50-59 or 101-120 bpm</div>
+              <div>Critical: &lt;50 or >120 bpm</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Description Panel -->
+       <!-- Current inline style clashes with dark theme -->
+        <div class="description-panel mt-4" style="background: rgba(30, 41, 59, 0.9); color: var(--text-primary); border-radius: 1rem; padding: 1.5rem; border-color:white ; border-width: 1px;">
+        <h5>Welcome to the RHMS Prototype</h5>
+        <p>
+          This web application simulates a Remote Health Monitoring System for real-time tracking of patient vital signs—specifically, SpO₂ and Heart Rate.
+          It uses machine learning (ML) derived thresholds to detect abnormal conditions early, allowing for prompt clinical intervention.
+        </p>
+        <p>
+          <strong>How to Use This Simulation:</strong>
+        </p>
+        <ul>
+          <li><strong>Start Simulation:</strong> Begins the real-time monitoring of all patients. Data is refreshed every second and alerts are triggered when vitals cross clinical thresholds.</li>
+          <li><strong>Stop Simulation:</strong> Pauses the real-time updates and alert notifications.</li>
+          <li><strong>Restart Simulation:</strong> Resets the simulation data and starts fresh monitoring.</li>
+          <li><strong>Acknowledge Alert:</strong> When an alert is displayed on a patient card, click the "Acknowledge Alert" button. Once acknowledged, the alert is logged and the patient’s vitals will gradually recover toward normal values.</li>
+        </ul>
+        <p>
+          <strong>Additional Feature:</strong> Each patient card includes a <em>History</em> button. When clicked, it toggles the display of two separate history charts showing past SpO₂ and Heart Rate readings with dedicated y‑axis scales.
+        </p>
+        <p>
+          <strong>About the Patients:</strong> Each patient is uniquely identified and monitored in real time. Their vital signs are continuously updated. Alerts are generated if the vitals exceed clinical thresholds.
+        </p>
+        <p>
+          <strong>Clinical Thresholds:</strong>
+        </p>
+        <ul>
+          <li><strong>SpO₂:</strong> Normal (≥95%), Warning (90-94%), Critical (&lt;90%).</li>
+          <li><strong>Heart Rate:</strong> Normal (60-100 bpm), Warning (50-59 or 101-120 bpm), Critical (&lt;50 or >120 bpm).</li>
+        </ul>
+        <p>
+          The aim of this prototype is to demonstrate how Machine Learning can be leveraged to provide early intervention by identifying deviations from normal vital ranges, thereby enabling timely assistance.
+          All alert logs and patient readings are stored every second for analysis and review.
+        </p>
+      </div>
     </div>
+  </div>
+  
+    <!-- Patient Cards Container -->
 
-    <script>
-        function fetchVitals() {
-            $.getJSON("/update_vitals", function(data) {
-                let tableBody = "";
-                data.forEach(patient => {
-                    let statusClass = patient.status === "Critical" ? "status-critical"
-                                     : patient.status === "Warning" ? "status-warning"
-                                     : "status-normal";
+    <main class="row g-4 p-4">
+      <!-- Patient Cards Section -->
+      <div class="col-12 col-xl-9">
+        <div class="row g-4" id="patientCards"></div>
+      </div>
 
-                    // Prepare the alert message based on the patient's status
-                    let alertMessage = patient.alert_details || "No Alert";  // Display reason if alert triggered
+    <!-- Alert Log Sidebar -->
+    <div class="col-12 col-xl-3">
+      <div class="glass-card p-3">
+        <h5 class="mb-3"><i class="fas fa-exclamation-triangle me-2"></i>Alert Log</h5>
+        <div id="alertLogList" class="alert-log"></div>
+      </div>
+    </div>
+  </main>
 
-                    tableBody += `
-                        <tr class="${statusClass}">
-                            <td>${patient.id}</td>
-                            <td>${patient.spo2}%</td>
-                            <td>${patient.heart_rate} bpm</td>
-                            <td>${patient.systolic_bp} mmHg</td>
-                            <td>${patient.diastolic_bp} mmHg</td>
-                            <td>${patient.status}</td>
-                            <td>${alertMessage}</td> <!-- Display alert reason -->
-                        </tr>
-                    `;
-                });
-                $("#patient-data").html(tableBody);
-            });
-        }
+  <!-- Patient Card Template -->
+  
+  <template id="patientCardTemplate">
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="patient-card glass-card p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h4 class="mb-0">Patient <span class="patient-id"></span></h4>
+            <small class="text-white"> <span class="timestamp"></span></small>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="status-indicator"></div>
+            <span class="status-text small"></span>
+          </div>
+        </div>
 
-        // Fetch every 1 second instead of 5 seconds
-        $(document).ready(function() {
-            fetchVitals();
-            setInterval(fetchVitals, 1000);
+        <div class="vital-display mb-3">
+          <div class="d-flex justify-content-between mb-2">
+            <div>
+              <i class="fas fa-lungs me-2"></i>
+              <span class="spo2-value h5"></span>
+              <small class="text-white">SpO₂</small>
+            </div>
+            <div class="spo2-status"></div>
+            <div class="ml-threshold small">ML Boundary: <span class="spo2-ml-boundary"></span></div>
+
+          </div>
+          <div class="vital-progress">
+            <div class="progress-bar"></div>
+          </div>
+        </div>
+        <div class="vital-display mb-3">
+          <div class="d-flex justify-content-between mb-2">
+            <div>
+              <i class="fas fa-heart me-2"></i>
+              <span class="heartrate-value h5"></span>
+              <small class="text-white">BPM</small>
+            </div>
+            <div class="heartrate-status"></div>
+            <div class="ml-threshold small">ML Range: <span class="heartrate-ml-boundary"></span>-<span class="heartrate-ml-boundary-high"></span></div>
+
+          </div>
+          <div class="vital-progress">
+            <div class="progress-bar"></div>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <div class="alert-container">
+            <div class="alert-entry spo2-alert alert-normal" style="display:none;">
+              <i class="fas fa-heartbeat alert-icon"></i>
+              <strong>SpO₂ Alert:</strong> <span class="spo2-alert-text"></span>
+            </div>
+            <div class="alert-entry heartrate-alert alert-normal" style="display:none;">
+              <i class="fas fa-exclamation-triangle alert-icon"></i>
+              <strong>Heart Rate Alert:</strong> <span class="heartrate-alert-text"></span>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mt-2">
+            <small class="text-white timestamp"></small>
+          </div>
+          
+          
+        
+        <div class="alert-container position-relative text-white">
+          <div class="alert-badge"></div>
+          <button class="btn btn-sm w-100 mb-2 acknowledge-btn  text-white border-1 border-white">
+            <i class="fas fa-check-circle me-2"></i>Acknowledge Alert
+          </button>
+          <button class="btn btn-sm w-100 history-toggle-btn  text-white text-white border-1 border-white">
+            <i class="fas fa-chart-line me-2"></i>Toggle History
+          </button>
+        </div>
+
+        
+          <!-- History Charts -->
+        <div class="history-container mt-3" style="display: none;">
+          <div class="chart-container p-2">
+            <canvas class="spo2-history-canvas"></canvas>
+          </div>
+          <div class="chart-container p-2 mt-2">
+            <canvas class="heartrate-history-canvas"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+          <div class="cooldown-timer" style="display: none;"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Load Chart.js before our inline script -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- JavaScript for Dashboard Functionality -->
+  <script>
+    
+    const charts = {};
+    const patientCards = document.getElementById('patientCards');
+    const template = document.getElementById('patientCardTemplate');
+    const alertLogList = document.getElementById('alertLogList');
+
+    // Object to track logged alerts: each patient ID maps to "active" or "acknowledged"
+    let loggedAlerts = {};
+
+    // Helper function to log an entry in the UI with a datetime stamp
+    function logAlertUI(message) {
+      const logEntry = document.createElement('div');
+      logEntry.className = "list-group-item";
+      const timestamp = new Date().toLocaleString();
+      logEntry.textContent = `${timestamp} - ${message}`;
+      alertLogList.appendChild(logEntry);
+    }
+
+    // Determine the combined status based on priority
+    function getCombinedStatus(spo2Status, hrStatus) {
+      const statusPriority = {Critical: 3, Warning: 2, assistanceactive: 1, Normal: 0};
+      return [spo2Status, hrStatus].sort((a, b) => statusPriority[b] - statusPriority[a])[0];
+    }
+
+    // Update the dashboard: create/update cards and update history charts
+    function updateDashboard() {
+      fetch('/api/data')
+        .then(r => r.json())
+        .then(data => {
+          for (let pid in data) {
+            const patient = data[pid];
+            let cardContainer = document.getElementById(`card-${pid}`);
+            if (!cardContainer) {
+              // Clone template and set unique id for the card container
+              let clone = template.content.cloneNode(true);
+              cardContainer = clone.querySelector('.col-12.col-md-6.col-lg-4');
+              cardContainer.id = `card-${pid}`;
+              patientCards.appendChild(clone);
+
+              // Attach event listener for history toggle button (only once)
+              const toggleBtn = cardContainer.querySelector('.history-toggle-btn');
+              const historyContainer = cardContainer.querySelector('.history-container');
+              toggleBtn.addEventListener('click', () => {
+                if (historyContainer.style.display === 'none') {
+                  historyContainer.style.display = 'block';
+                  toggleBtn.textContent = 'Hide History';
+                } else {
+                  historyContainer.style.display = 'none';
+                  toggleBtn.textContent = 'Show History';
+                }
+              });
+            }
+
+            // Update card basic info
+            cardContainer.querySelector('.patient-id').textContent = pid;
+            cardContainer.querySelector('.spo2-value').textContent = `${patient.spo2}%`;
+            cardContainer.querySelector('.heartrate-value').textContent = patient.heartrate;
+
+            
+
+            // Status Handling
+            const combinedStatus = getCombinedStatus(patient.status, patient.heartrate_status);
+            const statusIndicator = cardContainer.querySelector('.status-indicator');
+            const statusText = cardContainer.querySelector('.status-text');
+            const mainCard = cardContainer.querySelector('.patient-card');
+            mainCard.classList.remove('critical', 'warning', 'assistanceactive');
+            statusIndicator.style.backgroundColor = `var(--${combinedStatus})`;
+            let displayStatus = combinedStatus.toUpperCase();
+            if (patient.status === 'assistance' || patient.heartrate_status === 'assistance') {
+              displayStatus = 'Assistance Active';
+            }
+            statusText.textContent = displayStatus;
+
+            // ML Thresholds
+            const mlDisplay = value => value === "CALCULATING" ? `<span class="text-white">${value}</span>` : value;
+            cardContainer.querySelector('.spo2-ml-boundary').innerHTML = mlDisplay(patient.thresholds.ml_boundary);
+            cardContainer.querySelector('.heartrate-ml-boundary').innerHTML = mlDisplay(patient.thresholds.heartrate_ml_boundary);
+            cardContainer.querySelector('.heartrate-ml-boundary-high').innerHTML = mlDisplay(patient.thresholds.heartrate_ml_boundary_high);
+
+            // Display SpO₂ Alert
+            const spo2AlertContainer = cardContainer.querySelector('.spo2-alert');
+            const spo2AlertText = cardContainer.querySelector('.spo2-alert-text');
+            if (patient.current_alert) {
+              spo2AlertContainer.style.display = 'block';
+              spo2AlertText.textContent = patient.current_alert;
+              spo2AlertContainer.className = `spo2-alert alert ${ 
+                  patient.current_alert.includes('Critical') ? 'alert-critical' : 
+                  patient.current_alert.includes('Warning') ? 'alert-warning' : 
+                  'alert-normal'
+              } mt-2`;
+            }
+                else {
+              spo2AlertContainer.style.display = 'none';
+            }
+
+            // Display Heart Rate Alert
+            const hrAlertContainer = cardContainer.querySelector('.heartrate-alert');
+            const hrAlertText = cardContainer.querySelector('.heartrate-alert-text');
+            if (patient.heartrate_current_alert) {
+              hrAlertContainer.style.display = 'block';
+              hrAlertText.textContent = patient.heartrate_current_alert;
+              hrAlertContainer.className = `heartrate-alert alert ${patient.heartrate_current_alert.includes('Critical') ? 'alert-critical' :patient.heartrate_current_alert.includes('Warning') ? 'alert-warning' :  'alert-normal'} mt-2`;
+            } else {
+              hrAlertContainer.style.display = 'none';
+            }
+
+            // Log new alerts if not already logged
+            if ((patient.alert_active || patient.heartrate_alert_active) && loggedAlerts[pid] !== 'active') {
+              const alertMessage = patient.current_alert || patient.heartrate_current_alert;
+              const alertText = `Alert for Patient ${pid}: ${alertMessage} (Status: ${patient.status.toUpperCase()})`;
+              logAlertUI(alertText);
+              loggedAlerts[pid] = 'active';
+              // Send alert event to backend to save to CSV
+              fetch('/api/log_alert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  patient_id: pid,
+                  alert_message: alertMessage,
+                  status: patient.status
+                })
+              });
+            }
+
+            // Acknowledge Button and Cooldown Timer
+            const ackButton = cardContainer.querySelector('.acknowledge-btn');
+            const cooldownElem = cardContainer.querySelector('.cooldown-timer');
+            const cooldownEnd = new Date(patient.cooldown_end_time);
+            const now = new Date();
+            if ((patient.alert_active || patient.heartrate_alert_active) && now < cooldownEnd) {
+              ackButton.style.display = 'none';
+              cooldownElem.style.display = 'block';
+              const diff = Math.ceil((cooldownEnd - now) / 1000);
+              cooldownElem.textContent = diff > 0 ? `Cooldown: ${diff}s remaining` : '';
+            } else {
+              ackButton.style.display = (patient.alert_active || patient.heartrate_alert_active) ? 'block' : 'none';
+              cooldownElem.style.display = 'none';
+              ackButton.onclick = () => acknowledgeAlert(pid, ackButton);
+            }
+
+            // Timestamp update
+            cardContainer.querySelector('.timestamp').textContent = `Last update: ${patient.timestamp}`;
+
+            // ---- Update History Charts ----
+            // Initialize history charts for this patient if they don't exist
+            if (!charts[pid]) {
+              charts[pid] = {};
+              // Create SpO₂ history chart with its own canvas
+              const spo2Canvas = cardContainer.querySelector('.spo2-history-canvas');
+              const spo2Ctx = spo2Canvas.getContext('2d');
+              charts[pid].spo2 = new Chart(spo2Ctx, {
+                type: 'line',
+                data: {
+                  labels: [],
+                  datasets: [{
+                    label: 'SpO₂',
+                    data: [],
+                    borderColor: 'rgb(255, 99, 132)',
+                    tension: 0.1,
+                    fill: false
+                  }]
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  scales: {
+                    y: {
+                      min: 60, // adjust based on your data
+                      max: 100
+                    }
+                  }
+                }
+              });
+              // Create Heart Rate history chart with its own canvas
+              const hrCanvas = cardContainer.querySelector('.heartrate-history-canvas');
+              const hrCtx = hrCanvas.getContext('2d');
+              charts[pid].heartrate = new Chart(hrCtx, {
+                type: 'line',
+                data: {
+                  labels: [],
+                  datasets: [{
+                    label: 'Heart Rate',
+                    data: [],
+                    borderColor: 'rgb(54, 162, 235)',
+                    tension: 0.1,
+                    fill: false
+                  }]
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  scales: {
+                    y: {
+                      min: 40, // adjust based on your data
+                      max: 200
+                    }
+                  }
+                }
+              });
+            }
+            // Update the SpO₂ history chart with the new reading
+            charts[pid].spo2.data.labels.push(new Date().toLocaleTimeString());
+            charts[pid].spo2.data.datasets[0].data.push(patient.spo2);
+            charts[pid].spo2.update();
+
+            // Update the Heart Rate history chart with the new reading
+            charts[pid].heartrate.data.labels.push(new Date().toLocaleTimeString());
+            charts[pid].heartrate.data.datasets[0].data.push(patient.heartrate);
+            charts[pid].heartrate.update();
+          }
         });
-    </script>
+    }
 
+    function acknowledgeAlert(pid, button) {
+  button.disabled = true;
+  button.textContent = 'Acknowledging...';
+  
+  // Send the acknowledgment request
+  fetch(`/api/acknowledge_alert/${pid}`, { method: 'POST' })
+    .then(response => {
+      if (!response.ok) throw new Error('Acknowledgment failed');
+      return response.json();
+    })
+    .then(newStatus => {
+      button.textContent = newStatus === 'assistance' ? 'Assistance Active' : 'Acknowledged';
+      logAlertUI(`Assistance provided to patient ${pid}.`);
+      loggedAlerts[pid] = 'acknowledged';
+
+      // Set interval to check the status every second
+      const checkInterval = setInterval(() => {
+        fetch(`/api/data`)
+          .then(r => r.json())
+          .then(data => {
+            const patient = data[pid];
+            const now = new Date();
+            const cooldownEnd = new Date(patient.cooldown_end_time);
+            
+            // If cooldown is over, re-enable the button and clear the interval
+            if (now > cooldownEnd) {
+              button.disabled = false;
+              button.textContent = 'Acknowledge';
+              clearInterval(checkInterval); // Stop checking after cooldown ends
+            }
+          })
+          .catch(error => console.error(error));
+      }, 1000); // Check every second
+    })
+    .catch(error => { 
+      console.error(error);
+      button.disabled = false; 
+      button.textContent = 'Failed, try again'; 
+    });
+}
+
+
+    // Simulation control functions (start/stop/restart)
+    function controlSimulation(action) {
+      fetch(`/api/${action}`, { method: 'POST' })
+        .then(updateStatus)
+        .then(() => {
+          if (action === 'restart') location.reload();
+        });
+    }
+
+    function updateStatus() {
+      fetch('/api/status')
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('sim-status').innerHTML = `
+                Status: ${data.running ? 'Running' : 'Stopped'}
+                | Patients: ${data.patients.join(', ')}
+                | Data: ${(data.data_size/1024).toFixed(1)}KB
+            `;
+        });
+    }
+
+    // Initial calls and interval setup (refresh dashboard every second)
+    setInterval(updateDashboard, 1000);
+    updateDashboard();
+
+  </script>
 </body>
 </html>
+
