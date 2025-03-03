@@ -2,8 +2,6 @@ flask
 flask-socketio
 pandas
 numpy
-os
-datetime
 csv
 math
 scikit-learn
