@@ -527,7 +527,7 @@ def acknowledge_alert(pid):
             patient.heartrate_current_alert = None
             patient.cooldown_active = True
             patient.heartrate_cooldown_active = True
-            patient.cooldown_end_time = datetime.now() + timedelta(seconds=60)
+            patient.cooldown_end_time = datetime.now() + timedelta(seconds=30)
 
 
         return jsonify({"message": f"Alert for {pid} acknowledged. Cooldown started."}), 200

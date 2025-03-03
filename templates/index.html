@@ -211,6 +211,20 @@
   animation: fadeIn 0.3s ease-out;
 }
 
+.vital-progress {
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.progress-bar {
+  height: 100%; /* Ensure it takes the full height of the container */
+  background-color: var(--primary); /* Or any color you prefer */
+  transition: width 0.5s ease;
+}
+
+
     
   </style>
 </head>
@@ -223,7 +237,7 @@
             <i class="fas fa-heartbeat text-primary me-2"></i>
             RHMS Dashboard
           </h1>
-          <small class="text-white" >Real-time Patient Monitoring System</small>
+          <small class="text-white" >Remote Health Monitoring System</small>
         </div>
         <div class="d-flex gap-2">
           <button class="control-btn" onclick="controlSimulation('start')">
@@ -358,9 +372,7 @@
             <div class="ml-threshold small">ML Range: <span class="heartrate-ml-boundary"></span>-<span class="heartrate-ml-boundary-high"></span></div>
 
           </div>
-          <div class="vital-progress">
-            <div class="progress-bar"></div>
-          </div>
+          
         </div>
 
         <div class="mt-3">
@@ -491,6 +503,14 @@
             cardContainer.querySelector('.heartrate-ml-boundary').innerHTML = mlDisplay(patient.thresholds.heartrate_ml_boundary);
             cardContainer.querySelector('.heartrate-ml-boundary-high').innerHTML = mlDisplay(patient.thresholds.heartrate_ml_boundary_high);
 
+            const progressBars = cardContainer.querySelectorAll('.vital-progress .progress-bar');
+
+            // For SpO₂, assume the patient.spo2 value is already a percentage (0-100)
+            const spo2ProgressBar = progressBars[0];
+            spo2ProgressBar.style.width = `${patient.spo2}%`;
+
+            
+
             // Display SpO₂ Alert
             const spo2AlertContainer = cardContainer.querySelector('.spo2-alert');
             const spo2AlertText = cardContainer.querySelector('.spo2-alert-text');
@@ -554,6 +574,9 @@
 
             // Timestamp update
             cardContainer.querySelector('.timestamp').textContent = `Last update: ${patient.timestamp}`;
+            cardContainer.setAttribute('data-cooldown-end', patient.cooldown_end_time);
+
+
 
             // ---- Update History Charts ----
             // Initialize history charts for this patient if they don't exist
@@ -640,24 +663,25 @@
       logAlertUI(`Assistance provided to patient ${pid}.`);
       loggedAlerts[pid] = 'acknowledged';
 
-      // Set interval to check the status every second
+
+      const cardContainer = document.getElementById(`card-${pid}`);
+      const cooldownEndTime = cardContainer.getAttribute('data-cooldown-end');
+      const cooldownEnd = new Date(cooldownEndTime);
+    // Disable button and start cooldown countdown
+    button.disabled = true;
       const checkInterval = setInterval(() => {
-        fetch(`/api/data`)
-          .then(r => r.json())
-          .then(data => {
-            const patient = data[pid];
-            const now = new Date();
-            const cooldownEnd = new Date(patient.cooldown_end_time);
-            
-            // If cooldown is over, re-enable the button and clear the interval
-            if (now > cooldownEnd) {
-              button.disabled = false;
-              button.textContent = 'Acknowledge';
-              clearInterval(checkInterval); // Stop checking after cooldown ends
-            }
-          })
-          .catch(error => console.error(error));
-      }, 1000); // Check every second
+        const now = new Date();
+        const remaining = Math.ceil((cooldownEnd - now) / 1000);
+        
+        if (remaining > 0) {
+          button.textContent = `Cooldown: ${remaining}s`;
+        } else {
+          clearInterval(checkInterval);
+          button.disabled = false;
+          button.textContent = 'Acknowledge';
+          updateDashboard(); // Refresh to fetch latest status
+        }
+      }, 1000);
     })
     .catch(error => { 
       console.error(error);
