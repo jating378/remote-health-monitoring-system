@@ -19,4 +19,5 @@ plotly
 # Testing
 pytest
 
-gunicon
+gunicorn
+
